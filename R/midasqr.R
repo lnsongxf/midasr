@@ -213,5 +213,64 @@ midas_qr.fit <- function(x) {
         x$residuals <- x$model[,1]-x$fitted.values
     }
     x
+}
+
+midas_qu <- function(formula, data, tau = 0.5, ...) {
+    Zenv <- new.env(parent=environment(formula))
+    
+    if(missing(data)) {
+        ee <- NULL
+    }
+    else {
+        ee <- data_to_env(data)
+        parent.env(ee) <- parent.frame()
+    }
+ 
+    assign("ee",ee,Zenv)
+    formula <- as.formula(formula)
+    cl <- match.call()    
+    mf <- match.call(expand.dots = FALSE)
+    mf$formula <- formula
+    m <- match(c("formula", "data"), names(mf), 0L)
+    mf <- mf[c(1L, m)]
+    mf[[1L]] <- as.name("rq")
+    mf[[3L]] <- as.name("ee")   
+    
+    if(is.null(ee)) { 
+        yy <- eval(formula[[2]], Zenv)
+    }else {
+        yy <- eval(formula[[2]], ee)
+    }
+    
+    y_index <- 1:length(yy) 
+    if(!is.null(attr(mf, "na.action"))) {
+        y_index <- y_index[-attr(mf, "na.action")]
+    }
+    if(length(y_index)>1) {
+        if(sum(abs(diff(y_index) - 1))>0) warning("There are NAs in the middle of the time series")                
+    }
+    
+    ysave <- yy[y_index]
+    
+    if(inherits(yy, "ts")) {
+        class(ysave) <- class(yy)
+        attr(ysave, "tsp") <- c(time(yy)[range(y_index)], frequency(yy))
+    }
+    
+    if(inherits(yy,c("zoo","ts"))) {
+        y_start <- index2char(index(ysave)[1], frequency(ysave))
+        y_end <- index2char(index(ysave)[length(ysave)], frequency(ysave))
+    } else {
+        y_start <- y_index[1]
+        y_end <- y_index[length(y_index)]
+    }
+    
+    out <- eval(mf,Zenv)
+    out$Zenv <- Zenv
+    out$midas_coefficients <- out$coefficients
+    out$lhs <- ysave
+    class(out) <- c("midas_qu",class(out))
+    
+    out
     
 }
